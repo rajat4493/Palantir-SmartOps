@@ -1,3 +1,22 @@
+# Ignore Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environments
+venv/
+env/
+
+# Ignore database files
+*.db
+*.sqlite3
+
+# Ignore Streamlit cache
+.streamlit/
+
+# OS files
+.DS_Store
 venv/
 __pycache__/
 *.sqlite3

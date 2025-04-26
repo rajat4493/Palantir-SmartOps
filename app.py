@@ -95,8 +95,8 @@ def generate_nudges():
     insights = {}
     for emp_id, checkin, checkout, context in rows:
         checkin_dt = datetime.fromisoformat(checkin)
-        checkout_dt = datetime.fromisoformat(checkout)
-        duration = (checkout_dt - checkin_dt).total_seconds() / 3600
+        checkout_dt = datetime.fromisoformat(checkout) if checkout else None
+        duration = (checkout_dt - checkin_dt).total_seconds() / 3600 if checkout else 0
         day_of_week = checkin_dt.strftime("%A")
         date = checkin_dt.date()
 
@@ -107,27 +107,50 @@ def generate_nudges():
             "date": date,
             "checkin_hour": checkin_dt.hour,
             "duration_hours": round(duration, 2),
+            "checkout_missing": checkout is None,
             "context": context.split(",") if context else []
         })
 
     nudges = []
     for emp_id, logs in insights.items():
-        late_count = sum(1 for log in logs if log["checkin_hour"] > 9)  # after 9:00 AM
+        late_count = sum(1 for log in logs if log["checkin_hour"] > 9)
+        early_leave_count = sum(1 for log in logs if log["duration_hours"] < 6 and log["duration_hours"] > 0)
         long_shift_count = sum(1 for log in logs if log["duration_hours"] > 10)
-        avg_hours = sum(log["duration_hours"] for log in logs) / len(logs)
+        missing_checkout_count = sum(1 for log in logs if log["checkout_missing"])
+        avg_hours = sum(log["duration_hours"] for log in logs if log["duration_hours"] > 0) / len(logs)
 
-        nudge_text = ""
-        if late_count >= 2:
-            nudge_text += f"{late_count} late check-ins detected. Review morning shift timings. "
-        if long_shift_count >= 2:
-            nudge_text += f"{long_shift_count} long shifts (>10h) detected. Watch for burnout. "
-        if not nudge_text:
-            nudge_text = "No major concerns. Team behavior looks consistent."
+        # Build nudge message
+        messages = []
+        if late_count > 0:
+            messages.append(f"{late_count} late check-ins")
+        if early_leave_count > 0:
+            messages.append(f"{early_leave_count} early leaves")
+        if long_shift_count > 0:
+            messages.append(f"{long_shift_count} long shifts (>10h)")
+        if missing_checkout_count > 0:
+            messages.append(f"{missing_checkout_count} missing checkouts")
+
+        if not messages:
+            nudge_msg = "No major concerns. Team behavior looks consistent."
+            severity = "low"
+        else:
+            nudge_msg = ", ".join(messages) + " detected. Recommend review."
+            if long_shift_count >= 3 or late_count >= 3:
+                severity = "medium"
+            else:
+                severity = "low"
 
         nudges.append({
             "employee_id": emp_id,
-            "avg_daily_hours": round(avg_hours, 2),
-            "nudges": nudge_text.strip()
+            "summary": {
+                "late_checkins": late_count,
+                "early_leaves": early_leave_count,
+                "long_shifts": long_shift_count,
+                "missing_checkouts": missing_checkout_count,
+                "avg_daily_hours": round(avg_hours, 2)
+            },
+            "nudge_message": nudge_msg,
+            "severity": severity
         })
 
     return {"nudges": nudges}
