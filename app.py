@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -6,6 +8,8 @@ import sqlite3
 import os
 
 app = FastAPI()
+
+templates = Jinja2Templates(directory="templates")
 
 DB_FILE = "checkins.db"
 
@@ -46,6 +50,69 @@ def submit_checkin(data: CheckIn):
     conn.commit()
     conn.close()
     return {"message": "Check-in recorded"}
+
+####Adding the checkin form - HTML input form 
+
+@app.get("/checkin-form", response_class=HTMLResponse)
+async def checkin_form(request: Request):
+    return templates.TemplateResponse("checkin_form.html", {"request": request})
+
+@app.post("/submit-checkin")
+async def submit_checkin_form(employee_id: str = Form(...)):
+    from datetime import datetime
+
+    checkin_time = datetime.now()
+    checkout_time = None  # We use same time for now; later will handle real checkout
+
+    # Insert into DB just like API
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT INTO checkins (employee_id, checkin_time, checkout_time, context)
+        VALUES (?, ?, ?, ?)
+    ''', (employee_id, checkin_time.isoformat(), None, ""))
+    conn.commit()
+    conn.close()
+
+    return RedirectResponse(url="/checkin-form", status_code=303)
+
+#####Adding the check out time with checkout time format form
+@app.get("/checkout-form", response_class=HTMLResponse)
+async def checkout_form(request: Request):
+    return templates.TemplateResponse("checkout_form.html", {"request": request})
+
+@app.post("/submit-checkout")
+async def submit_checkout_form(employee_id: str = Form(...)):
+    from datetime import datetime
+
+    checkout_time = datetime.now()
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+
+    # Find the latest record for this employee with NULL checkout
+    cursor.execute('''
+        SELECT id FROM checkins
+        WHERE employee_id = ? AND checkout_time IS NULL
+        ORDER BY checkin_time DESC
+        LIMIT 1
+    ''', (employee_id,))
+    result = cursor.fetchone()
+
+    if result:
+        checkin_id = result[0]
+        cursor.execute('''
+            UPDATE checkins
+            SET checkout_time = ?
+            WHERE id = ?
+        ''', (checkout_time.isoformat(), checkin_id))
+        conn.commit()
+
+    conn.close()
+
+    return RedirectResponse(url="/checkout-form", status_code=303)
+
+###################################################################################################################################
 
 # Endpoint to get behavior timeline for an employee
 @app.get("/timeline/{employee_id}")
