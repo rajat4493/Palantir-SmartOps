@@ -2,6 +2,25 @@
 <html>
 <head>
     <title>SmartOps AI - Check In</title>
+    <script>
+        // Ask for location when page loads
+        function getLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(function(position) {
+                    document.getElementById("latitude").value = position.coords.latitude;
+                    document.getElementById("longitude").value = position.coords.longitude;
+                    console.log("Location set:", position.coords.latitude, position.coords.longitude);
+                }, function(error) {
+                    console.log("Error getting location:", error.message);
+                    alert("Could not get GPS location. Please allow location access in your browser.");
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        window.onload = getLocation;
+    </script>
 </head>
 <body>
     <h1>Employee Check-In</h1>
@@ -10,9 +29,12 @@
         <label for="employee_id">Employee ID:</label><br>
         <input type="text" id="employee_id" name="employee_id" required><br><br>
 
+        <!-- Hidden fields populated by JS -->
+        <input type="hidden" id="latitude" name="latitude">
+        <input type="hidden" id="longitude" name="longitude">
+
         <button type="submit">Check In Now</button>
     </form>
 
 </body>
 </html>
-
