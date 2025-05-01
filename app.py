@@ -8,12 +8,21 @@ import sqlite3
 import os
 import requests
 from nudges import generate_nudges
+from forecast_main import router as forecast_router
+from risk_radar.riskradar import router as risk_router
 
 app = FastAPI()
 
 templates = Jinja2Templates(directory="templates")
 
 DB_FILE = "checkins.db"
+
+##########ADDING THE BURNOUT PART########################################
+
+app.include_router(risk_router)
+
+########################################################################
+
 
 #####API for Geo Location, we are using OpenCage(https://opencagedata.com)
 
@@ -244,7 +253,11 @@ def detect_shift(employee_id, conn):
 
     return diff  # + means later, - means earlier
 
-#############################
+#################Getting forecast from forecast.py############
+
+app.include_router(forecast_router)
+
+#####################################
 @app.get("/nudges")
 def nudges_route():
     return generate_nudges()
