@@ -1,23 +1,20 @@
-import requests
 import random
 from datetime import datetime, timedelta
+import requests
 
-# Settings
-url = "http://127.0.0.1:8000/checkin"
-num_records = 300  # how many checkins you want to create
-
+# Configuration
 employees = ["EMP001", "EMP002", "EMP003", "EMP004", "EMP005"]
-contexts = ["rain", "sunny", "snow", "cloudy", "windy", "fog", "storm"]
+address = "Cedrowa 27, 80-126 Gdańsk, Poland"
+base_lat = 54.3382
+base_lon = 18.5858
 
-# Scenario Probabilities
-def generate_checkin_checkout():
-    base_day = datetime.now() - timedelta(days=random.randint(1, 10))
-    
-    # Base checkin time
-    checkin_time = base_day.replace(hour=9, minute=random.randint(0, 59), second=0)
+# Generate check-in and check-out with scenarios
+def generate_checkin_checkout(day_offset):
+    base_day = datetime.now() - timedelta(days=day_offset)
+    checkin_time = base_day.replace(hour=9, minute=random.randint(0, 59), second=random.randint(0, 59))
 
     scenario = random.choice(["normal", "late_checkin", "early_checkout", "missing_checkout", "long_shift", "short_shift"])
-
+    
     if scenario == "normal":
         checkout_time = checkin_time + timedelta(hours=8)
     elif scenario == "late_checkin":
@@ -32,21 +29,27 @@ def generate_checkin_checkout():
     else:
         checkout_time = checkin_time + timedelta(hours=8)
 
-    return checkin_time, checkout_time, scenario
+    return checkin_time, checkout_time
 
-# Create and send records
-for i in range(num_records):
-    employee_id = random.choice(employees)
-    checkin_time, checkout_time, scenario = generate_checkin_checkout()
-    selected_contexts = random.sample(contexts, k=random.randint(1, 2))
+# Generate and print data
+record_id = 1
+for day in range(10):
+    for emp in employees:
+        checkin, checkout = generate_checkin_checkout(day_offset=day)
+        lat = base_lat + random.uniform(-0.0002, 0.0002)
+        lon = base_lon + random.uniform(-0.0002, 0.0002)
+        
+        print(f"{record_id}|{emp}|{checkin.isoformat()}|{checkout.isoformat()}|{lat}|{lon}|{address}")
+        record_id += 1
 
-    payload = {
-        "employee_id": employee_id,
-        "checkin_time": checkin_time.isoformat(),
-        "checkout_time": checkout_time.isoformat() if checkout_time else None,
-        "context": selected_contexts
-    }
-
-    response = requests.post(url, json=payload)
-    print(f"Record {i+1} ({scenario}) -> Status {response.status_code}: {response.text}")
-
+        # Optional: send via POST
+        payload = {
+             "employee_id": emp,
+             "checkin_time": checkin.isoformat(),
+             "checkout_time": checkout.isoformat(),
+             "latitude": lat,
+             "longitude": lon,
+             "address": address
+         }
+        response = requests.post("http://127.0.0.1:8000/checkin", json=payload)
+        print(f"Sent {record_id}: {response.status_code}")

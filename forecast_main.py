@@ -1,22 +1,71 @@
 import streamlit as st
 import requests
 import pandas as pd
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from typing import List
+import sqlite3
+from datetime import datetime, timedelta
 
 router = APIRouter()
 
+DB_FILE = "checkins.db"
 API_BASE_URL = "http://127.0.0.1:8000"
 
+# -------------------------------
+# 📌 FASTAPI FORECAST ENDPOINT
+@router.get("/forecast")
+def get_forecast(
+    employees: List[str] = Query(...),
+    country: str = "IN",
+    region: str = "MH"
+):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cutoff = datetime.now() - timedelta(days=14)
+
+    forecast = []
+
+    for emp in employees:
+        cursor.execute('''
+            SELECT checkin_time, checkout_time FROM checkins
+            WHERE employee_id = ?
+            AND checkin_time IS NOT NULL AND checkout_time IS NOT NULL
+            AND checkin_time >= ?
+        ''', (emp, cutoff.isoformat()))
+        
+        rows = cursor.fetchall()
+        total_seconds = 0
+        for checkin, checkout in rows:
+            try:
+                checkin_dt = datetime.fromisoformat(checkin)
+                checkout_dt = datetime.fromisoformat(checkout)
+                total_seconds += (checkout_dt - checkin_dt).total_seconds()
+            except Exception:
+                continue
+
+        total_hours = total_seconds / 3600
+        avg_weekly = round(total_hours / 2, 2)  # 14 days → 2 weeks
+
+        forecast.append({
+            "employee_id": emp,
+            "country": country,
+            "region": region,
+            "forecast_hours": avg_weekly
+        })
+
+    conn.close()
+    return {"forecast": forecast}
+# -------------------------------
+
+# -------------------------------
+# STREAMLIT MANAGER DASHBOARD UI
 st.set_page_config(page_title="SmartOps AI - Manager Dashboard", layout="wide")
 
 st.title("🧠 SmartOps AI Manager Dashboard")
 st.markdown("---")
 
-# Sidebar Navigation
 page = st.sidebar.selectbox("Select Page", ["🏠 Overview", "📊 Nudges", "📈 Employee Timeline", "📅 Forecast Capacity"])
 
-# --------------------------------------
-# UTILITY: Fetch Nudges
 def fetch_nudges():
     try:
         response = requests.get(f"{API_BASE_URL}/nudges")
@@ -29,7 +78,6 @@ def fetch_nudges():
         st.error(f"Error fetching nudges: {e}")
         return []
 
-# UTILITY: Fetch Timeline
 def fetch_timeline(employee_id):
     try:
         response = requests.get(f"{API_BASE_URL}/timeline/" + employee_id)
@@ -42,7 +90,6 @@ def fetch_timeline(employee_id):
         st.error(f"Error fetching timeline: {e}")
         return None
 
-# UTILITY: Fetch Forecast
 def fetch_forecast(employees, country="IN", region="MH"):
     try:
         params = [("employees", emp) for emp in employees]
@@ -57,19 +104,14 @@ def fetch_forecast(employees, country="IN", region="MH"):
         st.error(f"Error fetching forecast: {e}")
         return []
 
-# --------------------------------------
-# 🏠 Overview
+# UI Pages
 if page == "🏠 Overview":
     st.header("🏠 SmartOps Overview")
     st.write("This page can show total check-ins, late % trends, etc.")
 
-# --------------------------------------
-# 📊 Nudges View
 elif page == "📊 Nudges":
     st.header("📊 Behavior Nudges")
-
     nudges = fetch_nudges()
-
     if not nudges:
         st.info("No nudges right now.")
     else:
@@ -79,7 +121,6 @@ elif page == "📊 Nudges":
         for nudge in nudges:
             if selected_emp != "All" and nudge["employee_id"] != selected_emp:
                 continue
-
             severity_color = {
                 "low": "#d4edda",
                 "yellow": "#fff3cd",
@@ -97,29 +138,20 @@ elif page == "📊 Nudges":
                     </div>
                 """, unsafe_allow_html=True)
 
-# --------------------------------------
-# 📈 Timeline View
 elif page == "📈 Employee Timeline":
     st.header("📈 Employee Timeline")
-
     employee_id = st.text_input("Enter Employee ID (e.g. EMP001)")
-
     if st.button("Fetch Timeline") and employee_id:
         timeline_data = fetch_timeline(employee_id)
-
         if timeline_data:
             st.subheader(f"Timeline for {timeline_data['employee_id']}")
             timeline_df = pd.DataFrame(timeline_data["timeline"])
             st.dataframe(timeline_df)
-
             if not timeline_df.empty:
                 st.line_chart(timeline_df.set_index("date")["duration_hours"])
 
-# --------------------------------------
-# 📅 Forecast Capacity
 elif page == "📅 Forecast Capacity":
     st.header("📅 Forecast Capacity Planner")
-
     employee_ids = st.text_input("Enter comma-separated employee IDs", value="EMP001,EMP002")
     country = st.text_input("Country Code (e.g. IN, US)", value="IN")
     region = st.text_input("Region Code (e.g. MH, CA)", value="MH")
@@ -127,11 +159,9 @@ elif page == "📅 Forecast Capacity":
     if st.button("Generate Forecast"):
         employee_list = [e.strip() for e in employee_ids.split(",") if e.strip()]
         forecast_data = fetch_forecast(employee_list, country, region)
-
         if forecast_data:
             forecast_df = pd.DataFrame(forecast_data)
             st.subheader("Forecast Results")
             st.dataframe(forecast_df)
-
             total_hours = forecast_df["forecast_hours"].sum()
             st.success(f"Total Team Forecasted Hours: {total_hours} hrs")
