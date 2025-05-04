@@ -7,15 +7,15 @@ from datetime import datetime, timedelta
 import sqlite3
 import os
 import requests
-from nudges import generate_nudges
-from forecast_main import router as forecast_router
-from risk_radar.riskradar import router as risk_router
+from engine.models.nudges import generate_nudges
+from engine.models.forecast_main import router as forecast_router
+from engine.models.riskradar import router as risk_router
 
 app = FastAPI()
 
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="../frontend/templates")
 
-DB_FILE = "checkins.db"
+DB_FILE = "../db/checkins.db"
 
 ##########ADDING THE BURNOUT PART########################################
 

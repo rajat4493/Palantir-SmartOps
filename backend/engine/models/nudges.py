@@ -1,7 +1,7 @@
 from datetime import datetime
 import sqlite3
 
-DB_FILE = "checkins.db"
+DB_FILE = "../db/checkins.db"
 
 def minutes_since_midnight(dt: datetime):
     return dt.hour * 60 + dt.minute

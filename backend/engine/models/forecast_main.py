@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 router = APIRouter()
 
-DB_FILE = "checkins.db"
+DB_FILE = "../db/checkins.db"
 API_BASE_URL = "http://127.0.0.1:8000"
 
 # -------------------------------

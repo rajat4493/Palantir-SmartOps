@@ -4,7 +4,7 @@ from fastapi import APIRouter, Query
 from typing import List
 
 router = APIRouter()
-DB_FILE = "checkins.db"
+DB_FILE = "../db/checkins.db"
 
 @router.get("/risk-radar")
 def risk_radar(employees: List[str] = Query(...)):
